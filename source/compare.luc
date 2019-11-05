@@ -1,0 +1,31 @@
+module compare (
+    input alufn[6],
+    input v,
+    input z,
+    input n,
+    output out[16]
+  ) {
+  
+
+  sig tempCmp;
+
+  always {
+    case (alufn[2:1]) {
+      // If ALUFN[2] = 0 && ALUFN[1] = 1, compare a = b
+      b01:
+        tempCmp = z;
+      // If ALUFN[2] = 1 && ALUFN[1] = 0, compare a < b
+      b10:
+        tempCmp = n^v ;
+      // If ALUFN[2] = 1 && ALUFN[1] = 1, compare a <= b  
+      b11:
+        tempCmp = z | (n^v);
+      // Everything else (i.e 0,0)
+      default:
+        tempCmp = 0;
+    }
+    
+    out[0] = tempCmp;
+    out[15:1] = 0;
+  }
+}

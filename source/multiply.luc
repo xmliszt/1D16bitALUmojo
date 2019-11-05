@@ -1,0 +1,19 @@
+module multiply (
+    input a[16],
+    input b[16],
+    output mul[16]
+  ) {
+
+  var shiftIndex;
+  sig partial[16];
+  sig tempMul[16];
+  
+  always {
+    tempMul = 0;
+    for(shiftIndex=0; shiftIndex<16; shiftIndex++){
+      partial = (a[15:0]&(16x{b[shiftIndex]})) << shiftIndex;
+      tempMul = tempMul + partial;
+      }
+    mul = tempMul;
+  }
+}

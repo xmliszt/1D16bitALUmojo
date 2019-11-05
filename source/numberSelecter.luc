@@ -1,0 +1,160 @@
+module numberSelecter (
+    input clk,  // clock
+    input rst_n,
+    output io_seg [8],      // 7-segment LEDs on IO Shield
+    output io_sel [4],      // Digit select on IO Shield
+    input io_button [5],    // 5 buttons on IO Shield
+    input startSelecter,    // if it is 1, start the selecter, go out from IDLE
+    output outA,            // [A,B] two values input by the user
+    output outB,
+    output endSelect
+  ) {
+  sig rst;
+  var up_btn;
+  var ctr_btn;
+  var down_btn;
+  var left_btn;
+  var right_btn;
+  
+  .clk(clk){
+    reset_conditioner reset_cond;
+    button_conditioner up_cond;
+    button_conditioner ctr_cond;
+    button_conditioner down_cond;
+    button_conditioner left_cond;
+    button_conditioner right_cond;
+    btnDebouncer up_db;
+    btnDebouncer ctr_db;
+    btnDebouncer down_db;
+    btnDebouncer left_db;
+    btnDebouncer right_db;
+    edge_detector up_edge(#RISE(1), #FALL(0));
+    edge_detector ctr_edge(#RISE(1), #FALL(0));
+    edge_detector down_edge(#RISE(1), #FALL(0));
+    edge_detector left_edge(#RISE(1), #FALL(0));
+    edge_detector right_edge(#RISE(1), #FALL(0));
+    edge_detector decimal_edge(#RISE(1), #FALL(0));
+    .rst(rst){
+      multiSevenSeg mySeg;
+      fsm state = {IDLE, INPUTA, INPUTB};
+      dff counter[30];
+      multi_dec_ctr dec_ctr;
+      }
+  }
+  
+  var num;
+  
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+    io_seg = 8hff;          // turn segments off
+    io_sel = 4hf;           // select no digits
+    
+    //Listening on button pressed
+    //UP: 0, CENTER: 1, DOWN: 2
+    up_cond.in = io_button[0]; //UP
+    ctr_cond.in = io_button[1]; //CENTER
+    down_cond.in = io_button[2]; //DOWN
+    left_cond.in = io_button[3]; //LEFT
+    right_cond.in = io_button[4]; //RIGHT
+    
+    //UP
+    up_edge.in = up_cond.out;
+    up_db.btn_in = up_edge.out;
+    up_btn = up_db.btn_out;
+    //CENTER
+    ctr_edge.in = ctr_cond.out;
+    ctr_db.btn_in = ctr_edge.out;
+    ctr_btn = ctr_db.btn_out;
+    //DOWN
+    down_edge.in = down_cond.out;
+    down_db.btn_in = down_edge.out;
+    down_btn = down_db.btn_out;
+    //LEFT
+    left_edge.in = left_cond.out;
+    left_db.btn_in = left_edge.out;
+    left_btn = left_db.btn_out;
+    //RIGHT
+    right_edge.in = right_cond.out;
+    right_db.btn_in = right_edge.out;
+    right_btn = right_db.btn_out;
+    
+    //initialize display to 0
+    num = 7h0;
+    outA = 7h0;
+    outB = 7h0;
+    counter.d = 0;
+    mySeg.values = {7h0,7h0,7h0,7h0};
+    io_seg = ~mySeg.seg;
+    io_sel = ~mySeg.select;
+    decimal_edge.in = 0;
+    dec_ctr.inc = decimal_edge.out;
+    
+    case(state.q){
+      //idle state do nothing
+      state.IDLE:
+        counter.d = 0;
+        if (startSelecter == 1){
+            counter.d = 0;
+            endSelect = 0;
+            state.d = state.INPUTA;
+          } else {
+            counter.d = 0;
+            state.d = state.q;
+            endSelect = 1;
+          }
+      
+      //input the value of A
+      state.INPUTA:
+        decimal_edge.in = num;
+        dec_ctr.inc = decimal_edge.out;
+        mySeg.values = dec_ctr.digits;
+        io_seg = ~mySeg.seg;
+        io_sel = ~mySeg.select;
+        counter.d = 0;
+        //-1
+        if(up_btn==1 || left_btn==1){
+          counter.d = 0;
+          num = num - 7h1;
+          }
+        //Confirm input
+        if(ctr_btn==1){
+          counter.d = 0;
+          outA = num;
+          num = 7h0;
+          state.d = state.INPUTB;
+          }
+        //+1
+        if(down_btn==1 || right_btn==1){
+          counter.d = 0;
+          num = num + 7h1;
+          }
+      
+      //input the value of B
+      state.INPUTB:
+        decimal_edge.in = num;
+        dec_ctr.inc = decimal_edge.out;
+        mySeg.values = dec_ctr.digits;
+        io_seg = ~mySeg.seg;
+        io_sel = ~mySeg.select;
+        counter.d = 0;
+        //-1
+        if(up_btn==1 || left_btn==1){
+          counter.d = 0;
+          num = num - 7h1;
+          }
+        //Confirm input
+        if(ctr_btn==1){
+          counter.d = 0; 
+          outB = num;
+          num = 7h0;
+          state.d = state.IDLE;
+          }
+        //+1
+        if(down_btn==1 || right_btn==1){
+          counter.d = 0;
+          num = num + 7h1;
+          }
+    }
+  }
+}

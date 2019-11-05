@@ -1,0 +1,28 @@
+module binaryToDecimal16bit (
+    input in[16],
+    output out
+  ) {
+  
+  sig tempSum;
+
+  always {
+    tempSum = 0;
+    tempSum = tempSum + in[0] * ($pow(2, 15));
+    tempSum = tempSum + in[1] * ($pow(2, 14));
+    tempSum = tempSum + in[2] * ($pow(2, 13));
+    tempSum = tempSum + in[3] * ($pow(2, 12));
+    tempSum = tempSum + in[4] * ($pow(2, 11));
+    tempSum = tempSum + in[5] * ($pow(2, 10));
+    tempSum = tempSum + in[6] * ($pow(2, 9));
+    tempSum = tempSum + in[7] * ($pow(2, 8));
+    tempSum = tempSum + in[8] * ($pow(2, 7));
+    tempSum = tempSum + in[9] * ($pow(2, 6));
+    tempSum = tempSum + in[10] * ($pow(2, 5));
+    tempSum = tempSum + in[11] * ($pow(2, 4));
+    tempSum = tempSum + in[12] * ($pow(2, 3));
+    tempSum = tempSum + in[13] * ($pow(2, 2));
+    tempSum = tempSum + in[14] * ($pow(2, 1));
+    tempSum = tempSum + in[15] * ($pow(2, 0));
+    out = tempSum;
+  }
+}

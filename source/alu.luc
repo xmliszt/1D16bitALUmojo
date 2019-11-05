@@ -1,0 +1,58 @@
+module alu (
+    input alufn[6],
+    input a[16],
+    input b[16],
+    output z,
+    output v,
+    output n,
+    output out[16]
+  ) {
+  
+  adderMul addMul;
+  compare com;
+  bool boole;
+  shift shifter;
+
+  always {
+    addMul.a = a;
+    addMul.b = b;
+    addMul.alufn = alufn;
+    
+    com.v = addMul.v;
+    com.n = addMul.n;
+    com.z = addMul.z;
+    com.alufn = alufn;
+    
+    boole.a = a;
+    boole.b = b;
+    boole.alufn = alufn;
+    
+    shifter.a = a;
+    shifter.b = b;
+    shifter.alufn = alufn;
+    
+    
+    //ALUFN[5:4] select methods
+    case(alufn[5:4]){
+      //choose addMul
+      b00:
+        out = addMul.out;
+      //choose compare
+      b01:
+        out = com.out;
+      //choose shifter
+      b10:
+        out = shifter.out;
+      //choose bool
+      b11:
+        out = boole.out;
+      //default
+      default:
+        out = 0;
+      }
+    
+    z = addMul.z;
+    n = addMul.n;
+    v = addMul.v;
+  }
+}

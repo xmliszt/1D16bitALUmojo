@@ -1,0 +1,724 @@
+module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy,      // AVR RX buffer full
+    output io_led [3][8],   // LEDs on IO Shield
+    output io_seg [8],      // 7-segment LEDs on IO Shield
+    output io_sel [4],      // Digit select on IO Shield
+    input io_button [5],    // 5 buttons on IO Shield
+    input io_dip [3][8]     // DIP switches on IO Shield
+  ) {
+  
+  sig rst;                  // reset signal
+  
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+    button_conditioner up_cond;
+    button_conditioner ctr_cond;
+    button_conditioner down_cond;
+    button_conditioner left_cond;
+    button_conditioner right_cond;
+    btnDebouncer up_db;
+    btnDebouncer ctr_db;
+    btnDebouncer down_db;
+    btnDebouncer left_db;
+    btnDebouncer right_db;
+    edge_detector up_edge(#RISE(1), #FALL(0));
+    edge_detector ctr_edge(#RISE(1), #FALL(0));
+    edge_detector down_edge(#RISE(1), #FALL(0));
+    edge_detector left_edge(#RISE(1), #FALL(0));
+    edge_detector right_edge(#RISE(1), #FALL(0));
+        
+    .rst(rst){
+      multiSevenSeg mySeg;
+      fsm modes = {MANUAL,ADD1,ADD2,ADDO,SUB1,SUBO,AND1,AND2,OR,XOR,LDR,SHL,SHR,SRA1,SRA2,CMPEQ,CMPLT,CMPLE};
+      dff counter[30];
+      dff store_a[16];
+      dff store_b[16];
+      dff store_alufn[6];
+      }
+  }
+  
+  // holds the value of 0 or 1 representing if the button is pressed
+  var up_btn;
+  var ctr_btn;
+  var down_btn;
+  var left_btn;
+  var right_btn;
+  var a[16];
+  var b[16];
+  const TIMER = 28;
+  
+  alu alu;
+  
+  
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+    
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+    
+    io_led = 3x{{8h00}};    // turn LEDs off
+    io_seg = 8hff;          // turn segments off
+    io_sel = 4hf;           // select no digits
+    
+    //Listening on button pressed
+    //UP: 0, CENTER: 1, DOWN: 2
+    up_cond.in = io_button[0]; //UP
+    ctr_cond.in = io_button[1]; //CENTER
+    down_cond.in = io_button[2]; //DOWN
+    left_cond.in = io_button[3]; //LEFT
+    right_cond.in = io_button[4]; //RIGHT
+    
+    //UP
+    up_edge.in = up_cond.out;
+    up_db.btn_in = up_edge.out;
+    up_btn = up_db.btn_out;
+    //CENTER
+    ctr_edge.in = ctr_cond.out;
+    ctr_db.btn_in = ctr_edge.out;
+    ctr_btn = ctr_db.btn_out;
+    //DOWN
+    down_edge.in = down_cond.out;
+    down_db.btn_in = down_edge.out;
+    down_btn = down_db.btn_out;
+    //LEFT
+    left_edge.in = left_cond.out;
+    left_db.btn_in = left_edge.out;
+    left_btn = left_db.btn_out;
+    //RIGHT
+    right_edge.in = right_cond.out;
+    right_db.btn_in = right_edge.out;
+    right_btn = right_db.btn_out;
+    
+    //initialize sevenSeg
+    mySeg.values = {"z","b","e","p"};
+    io_sel = 4b0000;
+    
+    //initialize ALU 
+    alu.a = 0;
+    alu.b = 0;
+    alu.alufn = 6b000000;
+    
+    case(modes.q){
+    
+      modes.MANUAL:
+      
+        counter.d = 0;
+        //UP button: confirm ALUFN selection
+        if (up_btn){
+          store_alufn.d = io_dip[2][5:0];
+        }
+        
+        //choose A 
+        if (io_dip[2][7] && ~io_dip[2][6]){
+          mySeg.values = {"z","z","z","a"};
+          io_seg = ~mySeg.seg;
+          io_sel = ~mySeg.select;
+          
+          a[15:8] = io_dip[1];
+          a[7:0] = io_dip[0];
+          
+          //LEFT button: store
+          if (left_btn){
+            store_a.d = a;
+          }
+        }
+        //choose B
+        if (io_dip[2][6] && ~io_dip[2][7]){
+          mySeg.values = {"z","z","z","b"};
+          io_seg = ~mySeg.seg;
+          io_sel = ~mySeg.select;
+          
+          b[15:8] = io_dip[1];
+          b[7:0] = io_dip[0];
+          
+          //LEFT button: store
+          if (left_btn){
+            store_b.d = b;
+          }
+        }
+        //RIGHT: result
+         if (right_btn){
+          mySeg.values = {"z","r","e","s"};
+          io_seg = ~mySeg.seg;
+          io_sel = ~mySeg.select;
+        
+          alu.alufn = store_alufn.q;
+          alu.a = store_a.q;
+          alu.b = store_b.q;
+          
+          io_led[0] = alu.out[7:0];
+          io_led[1] = alu.out[15:8];
+          io_led[2][7] = alu.z;
+          io_led[2][6] = alu.v;
+          io_led[2][5] = alu.n;
+        }
+        
+        
+        if (ctr_btn == 1){
+          io_led = 3x{{8h00}}; //reset all io_led
+          modes.d = modes.ADD1;
+          }
+
+      modes.ADD1:
+        mySeg.values = {"a","d","d",7h1};
+        io_seg = ~mySeg.seg;
+        io_sel = ~mySeg.select;
+        counter.d = counter.q + 1;
+        
+        alu.alufn = 6b000000;
+        alu.a = 16b0100000000000000;
+        alu.b = 16b0010000000000000;
+        
+        io_led[2][7] = alu.z;
+        io_led[2][6] = alu.v;
+        io_led[2][5] = alu.n;
+        
+        //DOWN button: go back to MANUAL mode
+        if (down_btn){
+          counter.d = 0;
+          modes.d = modes.MANUAL;
+        }
+        
+        if (alu.out == 16b0110000000000000){
+          io_led[0][0] = 1;
+        }
+        else{
+          io_led[0][0] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.ADD2;
+        }
+      
+      modes.ADD2:
+        mySeg.values = {"a","d","d",7h2};
+        io_seg = ~mySeg.seg;
+        io_sel = ~mySeg.select;
+        counter.d = counter.q + 1;
+        
+        alu.alufn = 6b000000;
+        alu.a = 16b0000000000000010;
+        alu.b = 16b0000000000000100;
+        
+        io_led[2][7] = alu.z;
+        io_led[2][6] = alu.v;
+        io_led[2][5] = alu.n;
+        
+        //DOWN button: go back to MANUAL mode
+        if (down_btn){
+          counter.d = 0;
+          modes.d = modes.MANUAL;
+        }
+        
+        if (alu.out == 16b0000000000000110){
+          io_led[0][1] = 1;
+        }
+        else{
+          io_led[0][1] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.ADDO;
+        }
+        
+      modes.ADDO:
+        mySeg.values = {"a","d","d","o"};
+        io_seg = ~mySeg.seg;
+        io_sel = ~mySeg.select;
+        counter.d = counter.q + 1;
+        
+        alu.alufn = 6b000000;
+        alu.a = 16b0100000000000000;
+        alu.b = 16b0100000000000000;
+        
+        io_led[2][7] = alu.z;
+        io_led[2][6] = alu.v;
+        io_led[2][5] = alu.n;
+        
+        //DOWN button: go back to MANUAL mode
+        if (down_btn){
+          counter.d = 0;
+          modes.d = modes.MANUAL;
+        }
+        
+        if (alu.v == 1){
+          io_led[0][2] = 1;
+        }
+        else{
+          io_led[0][2] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.SUB1;
+        }
+  
+      modes.SUB1:
+        mySeg.values = {"s","u","b",7h1};
+        io_seg = ~mySeg.seg;
+        io_sel = ~mySeg.select;
+        counter.d = counter.q + 1;
+        
+        alu.alufn = 6b000001;
+        alu.a = 16b0100000000000000;
+        alu.b = 16b0010000000000000;
+        
+        io_led[2][7] = alu.z;
+        io_led[2][6] = alu.v;
+        io_led[2][5] = alu.n;
+        
+        //DOWN button: go back to MANUAL mode
+        if (down_btn){
+          counter.d = 0;
+          modes.d = modes.MANUAL;
+        }
+        
+        if (alu.out == 16b0010000000000000){
+          io_led[0][3] = 1;
+        }
+        else{
+          io_led[0][3] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.SUBO;
+        }
+        
+      
+      modes.SUBO:
+        mySeg.values = {"s","u","b","o"};
+        io_seg = ~mySeg.seg;
+        io_sel = ~mySeg.select;
+        counter.d = counter.q + 1;
+        
+        alu.alufn = 6b000001;
+        alu.a = 16b1011111111111111;
+        alu.b = 16b0100000000000000;
+        
+        io_led[2][7] = alu.z;
+        io_led[2][6] = alu.v;
+        io_led[2][5] = alu.n;
+        
+        //DOWN button: go back to MANUAL mode
+        if (down_btn){
+          counter.d = 0;
+          modes.d = modes.MANUAL;
+        }
+        
+        if (alu.v == 1){
+          io_led[0][4] = 1;
+        }
+        else{
+          io_led[0][4] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.AND1;
+        }
+        
+     modes.AND1:
+        mySeg.values = {"a","n","d",7h1};
+        io_seg = ~mySeg.seg;
+        io_sel = ~mySeg.select;
+        counter.d = counter.q + 1;
+        
+        alu.alufn = 6b011000;
+        alu.a = 16b0000000000000001;
+        alu.b = 16b0000000000000001;
+        
+        io_led[2][7] = alu.z;
+        io_led[2][6] = alu.v;
+        io_led[2][5] = alu.n;
+        
+        //DOWN button: go back to MANUAL mode
+        if (down_btn){
+          counter.d = 0;
+          modes.d = modes.MANUAL;
+        }
+        
+        if (alu.out == 16b0000000000000001 ){
+          io_led[0][5] = 1;
+        }
+        else{
+          io_led[0][5] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.AND2;
+        }
+        
+    modes.AND2:
+      mySeg.values = {"a","n","d",7h2};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b011000;
+      alu.a = 16b0000000000000001;
+      alu.b = 16b0000000000000010;
+        
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+      
+      if (alu.out == 16b0000000000000000){
+          io_led[0][6] = 1;
+        }
+        else{
+          io_led[0][6] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.OR;
+        }
+        
+     modes.OR:
+      mySeg.values = {"z","z","o","r"};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b011110;
+      alu.a = 16b0000000000001111;
+      alu.b = 16b0000000011110000;
+        
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+        
+      if (alu.out == 16b0000000011111111){
+          io_led[0][7] = 1;
+        }
+        else{
+          io_led[0][7] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.XOR;
+        }
+    
+        
+     modes.XOR:
+      mySeg.values = {"z","x","o","r"};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b010110;
+      alu.a = 16b0000000000001010;
+      alu.b = 16b0000000000001000;
+        
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+      
+        
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+        
+      if (alu.out == 16b0000000000000010){
+          io_led[1][0] = 1;
+        }
+        else{
+          io_led[1][0] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.LDR;
+        }
+        
+    modes.LDR:
+      mySeg.values = {"z","l","d","r"};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b011010;
+      alu.a = 16b0000000000000001;
+      alu.b = 16b1000000000000000;
+        
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+      
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+      
+      if (alu.out == 16b0000000000000001){
+          io_led[1][1] = 1;
+        }
+        else{
+          io_led[1][1] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.SHL;
+        }
+        
+    modes.SHL:
+      mySeg.values = {"z","s","h","l"};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b100000;
+      alu.a = 16b0000000000000001;
+      alu.b = 16b0000000000000011;
+      
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+          
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+        
+      if (alu.out == 16b0000000000001000){
+          io_led[1][2] = 1;
+        }
+        else{
+          io_led[1][2] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.SHR;
+        }
+        
+     modes.SHR:
+      mySeg.values = {"z","s","h","r"};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b100001;
+      alu.a = 16b0000000000001000;
+      alu.b = 16b0000000000000011;
+        
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+        
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+        
+      if (alu.out == 16b0000000000000001){
+          io_led[1][3] = 1;
+        }
+        else{
+          io_led[1][3] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.SRA1;
+        }
+        
+    modes.SRA1:
+      mySeg.values = {"s","r","a",7h1};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b100011;
+      alu.a = 16b0001000000000000;
+      alu.b = 16b0000000000000011;
+      
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+      
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+    
+      if (alu.out == 16b0000010000000000){
+          io_led[1][4] = 1;
+        }
+        else{
+          io_led[1][4] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.SRA2;
+        }
+        
+        
+    modes.SRA2:
+      mySeg.values = {"s","r","a",7h2};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b100011;
+      alu.a = 16b1001000000000000;
+      alu.b = 16b0000000000000011;
+      
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+        
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+      
+      if (alu.out == 16b1111001000000000){
+          io_led[1][5] = 1;
+        }
+        else{
+          io_led[1][5] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.CMPEQ;
+        }
+        
+    modes.CMPEQ:
+      mySeg.values = {"z","c","e","q"};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b110011;
+      alu.a = 16b0000000000000001;
+      alu.b = 16b0000000000000001;
+      
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+      
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+      
+      if (alu.out == 16b0000000000000001){
+          io_led[1][6] = 1;
+        }
+        else{
+          io_led[1][6] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.CMPLT;
+        }
+        
+     modes.CMPLT:
+      mySeg.values = {"z","c","l","t"};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b110101;
+      alu.a = 16b0000000000000010;
+      alu.b = 16b0000000000000001;
+      
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+      
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+        
+      if (alu.out == 16b0000000000000000){
+          io_led[1][7] = 1;
+        }
+        else{
+          io_led[1][7] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.CMPLE;
+        }
+        
+     modes.CMPLE:
+      mySeg.values = {"z","c","l","e"};
+      io_seg = ~mySeg.seg;
+      io_sel = ~mySeg.select;
+      counter.d = counter.q + 1;
+      alu.alufn = 6b110111;
+      alu.a = 16b0000000000000010;
+      alu.b = 16b0000000000000001;
+      
+      io_led[2][7] = alu.z;
+      io_led[2][6] = alu.v;
+      io_led[2][5] = alu.n;
+        
+      
+      //DOWN button: go back to MANUAL mode
+      if (down_btn){
+        counter.d = 0;
+        modes.d = modes.MANUAL;
+      }
+      
+      if (alu.out == 16b0000000000000000){
+          io_led[2][0] = 1;
+        }
+        else{
+          io_led[2][0] = 0;
+        }
+        
+        if (counter.q[TIMER] == 1) {
+          counter.d = 0;
+          modes.d = modes.MANUAL;
+        }
+    }
+  }
+}

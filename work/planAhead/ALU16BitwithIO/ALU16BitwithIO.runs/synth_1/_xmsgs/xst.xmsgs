@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- IMPORTANT: This is an internal file that has been generated
+     by the Xilinx ISE software.  Any direct editing or
+     changes made to this file may result in unpredictable
+     behavior or data corruption.  It is strongly advised that
+     users do not edit the contents of this file. -->
+<messages>
+<msg type="error" file="HDLCompiler" num="910" delta="new" >"C:/Users/1003607/Documents/mojo/ALU16BitwithIO/work/planAhead/ALU16BitwithIO/ALU16BitwithIO.srcs/sources_1/imports/verilog/mojo_top_0.v" Line 188: Cannot have packed dimensions of type <arg fmt="%s" index="1">integer</arg>
+</msg>
+
+<msg type="error" file="HDLCompiler" num="910" delta="new" >"C:/Users/1003607/Documents/mojo/ALU16BitwithIO/work/planAhead/ALU16BitwithIO/ALU16BitwithIO.srcs/sources_1/imports/verilog/mojo_top_0.v" Line 190: Cannot have packed dimensions of type <arg fmt="%s" index="1">integer</arg>
+</msg>
+
+<msg type="error" file="HDLCompiler" num="598" delta="new" >"C:/Users/1003607/Documents/mojo/ALU16BitwithIO/work/planAhead/ALU16BitwithIO/ALU16BitwithIO.srcs/sources_1/imports/verilog/mojo_top_0.v" Line 7: Module &lt;<arg fmt="%s" index="1">mojo_top_0</arg>&gt; ignored due to previous errors.
+</msg>
+
+</messages>
+

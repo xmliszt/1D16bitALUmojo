@@ -1,0 +1,23 @@
+module shift (
+    input a[16],
+    input b[16],
+    input alufn[6],
+    output out[16]
+  ) {
+  
+  always {
+    case(alufn[1:0]){
+      //SHL
+      b00:
+        out = a[15:0] << b[3:0];
+      //SHR
+      b01:
+        out = a[15:0] >> b[3:0];
+      //SRA
+      b11:
+        out = $signed(a[15:0]) >>> b[3:0];
+      default:
+        out = a;
+      }
+  }
+}

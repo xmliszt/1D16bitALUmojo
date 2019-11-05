@@ -1,0 +1,27 @@
+module multiSevenSeg #(
+  DIGITS = 4 : DIGITS > 0,
+  DIV = 16 : DIV >= 0
+)(
+    input clk,  // clock
+    input rst,  // reset
+    input values [DIGITS][7], // values
+    output seg[7], // seven segment
+    output select [DIGITS] // select DIGITS
+  ) {
+  
+  const BITS_STORE_DIGIT = $clog2(DIGITS);
+  
+  .clk(clk), .rst(rst) {
+    counter myCounter (#DIV(DIV), #SIZE(BITS_STORE_DIGIT), #TOP(DIGITS-1));
+    }
+  
+  sevenSeg mySevenSeg;
+  decoder myDecoder (#WIDTH(BITS_STORE_DIGIT));
+
+  always {
+    mySevenSeg.char = values[myCounter.value];
+    seg = mySevenSeg.seg;
+    myDecoder.in = myCounter.value;
+    select = myDecoder.out;
+  }
+}
