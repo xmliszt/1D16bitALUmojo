@@ -10,7 +10,10 @@ module compare (
   sig tempCmp;
 
   always {
+    out = 16b0;
     case (alufn[2:1]) {
+      b00:
+        tempCmp = b0;
       // If ALUFN[2] = 0 && ALUFN[1] = 1, compare a = b
       b01:
         tempCmp = z;
@@ -22,10 +25,9 @@ module compare (
         tempCmp = z | (n^v);
       // Everything else (i.e 0,0)
       default:
-        tempCmp = 0;
+        tempCmp = b0;
     }
-    
+    out[15:1] = 15b0;
     out[0] = tempCmp;
-    out[15:1] = 0;
   }
 }

@@ -9,24 +9,25 @@ module bool (
   var y;
   
   always {
-    
+    out = 16b0;
     for (idx = 0; idx < 16; idx++){
     
-      y = c{a[idx], b[idx]};
+      y = c{b[idx], a[idx]};
       case(y) {
-
-        // If a = 0, b = 1, select ALUFN[1]
+        b00:
+          out[idx] = alufn[0];
+        // If b = 0, a = 1, select ALUFN[1]
         b01:
           out[idx] = alufn[1];
           
-        // If a = 1, b = 0, select ALUFN[2]
+        // If b = 1, a = 0, select ALUFN[2]
         b10:
           out[idx] = alufn[2];
           
-        // If a = 1, b = 1, select ALUFN[3]
+        // If b = 1, a = 1, select ALUFN[3]
         b11:
           out[idx] = alufn[3];
-        // If a = 0, b = 0, select ALUFN[0]
+        // If b = 0, a = 0, select ALUFN[0]
         default:
           out[idx] = alufn[0];
       }

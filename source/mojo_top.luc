@@ -56,8 +56,9 @@ module mojo_top (
   var down_btn;
   var left_btn;
   var right_btn;
-  var a[16];
-  var b[16];
+  sig a[16];
+  sig b[16];
+  sig alufn[6];
   const TIMER = 28;
   
   alu alu;
@@ -106,22 +107,32 @@ module mojo_top (
     right_btn = right_db.btn_out;
     
     //initialize sevenSeg
-    mySeg.values = {"z","b","e","p"};
+    mySeg.values = {"z","m","a","n"};
     io_sel = 4b0000;
     
-    //initialize ALU 
-    alu.a = 0;
-    alu.b = 0;
+    //initialize ALU and assign DIP switches and LEDs 
+    a = 16b0;
+    b = 16b0;
+    alufn = io_dip[2][5:0];
+    io_led[0] = a[7:0];
+    io_led[1] = a[15:8];
+    alu.a = a;
+    alu.b = b;
     alu.alufn = 6b000000;
     
     case(modes.q){
     
       modes.MANUAL:
       
+        mySeg.values = {"z","m","a","n"};
+        io_seg = ~mySeg.seg;
+        io_sel = ~mySeg.select;
+        
         counter.d = 0;
         //UP button: confirm ALUFN selection
+        alufn = io_dip[2][5:0];
         if (up_btn){
-          store_alufn.d = io_dip[2][5:0];
+          store_alufn.d = alufn;
         }
         
         //choose A 
@@ -152,8 +163,8 @@ module mojo_top (
             store_b.d = b;
           }
         }
-        //RIGHT: result
-         if (right_btn){
+        //show result
+         if (io_dip[2][6] && io_dip[2][7]){
           mySeg.values = {"z","r","e","s"};
           io_seg = ~mySeg.seg;
           io_sel = ~mySeg.select;
@@ -579,7 +590,7 @@ module mojo_top (
         modes.d = modes.MANUAL;
       }
     
-      if (alu.out == 16b0000010000000000){
+      if (alu.out == 16b0000001000000000){
           io_led[1][4] = 1;
         }
         else{

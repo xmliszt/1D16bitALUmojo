@@ -9,12 +9,8 @@ module adderMul (
   ) {
     
   sig temp[16];
-  multiply multi;
 
   always {
-  
-    multi.a = a[15:0];
-    multi.b = b[15:0];
   
     case (alufn[1:0]){
       //000000 addition
@@ -25,14 +21,8 @@ module adderMul (
       b01:
         temp = a - b;
         v = (a[15]&(~b[15])&(~temp[15]))|((~a[15])&(b[15])&temp[15]);
-      //000010 multiplication
-      b10:
-        temp = multi.mul;
-        v = (a[15]&b[15]&(~temp[15]))|((~a[15])&(~b[15])&temp[15]);
-      //000011 modulo
-      b11:
-        temp = a-(a/b*b);
-        v = (a[15]&b[15]&(~temp[15]))|((~a[15])&(~b[15])&temp[15]);
+
+        
       //default 000000
       default:
         temp = a + b;

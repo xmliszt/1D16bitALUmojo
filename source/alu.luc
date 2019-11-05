@@ -39,13 +39,13 @@ module alu (
         out = addMul.out;
       //choose compare
       b01:
-        out = com.out;
+        out = boole.out;
       //choose shifter
       b10:
         out = shifter.out;
       //choose bool
       b11:
-        out = boole.out;
+        out = com.out;
       //default
       default:
         out = 0;
